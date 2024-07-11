@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Crash Simulation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        #simulation {
+            margin: 20px auto;
+            width: 600px;
+            height: 200px;
+            position: relative;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            overflow: hidden;
+        }
+        #car {
+            width: 100px; /* 5 meters scaled down */
+            height: 40px; /* 2 meters scaled down */
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+        }
+        #crumpleZone {
+            width: 20px; /* 1 meter scaled down */
+            height: 100%;
+            background-color: yellow;
+            transition: width 0.5s;
+        }
+        #mainBody {
+            width: 80px; /* remaining 4 meters scaled down */
+            height: 100%;
+            background-color: red;
+        }
+        #wall {
+            width: 20px;
+            height: 100%;
+            background-color: gray;
+            position: absolute;
+            right: 0;
+            top: 0;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        .lethal {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Car Crash Simulation</h1>
+
+<div>
+    <label for="speed">Speed (m/s): </label>
+    <input type="range" id="speed" name="speed" min="0" max="50" value="10" oninput="updateSpeed()">
+    <span id="speedValue">10 m/s</span> (<span id="speedKmH">36 km/h</span>)
+</div>
+<div>
+    <label for="softness">Crumple Zone Softness: </label>
+    <input type="range" id="softness" name="softness" min="0" max="10" value="5" oninput="updateSoftness()">
+    <span id="softnessValue">5</span>
+</div>
+
+<div id="simulation">
+    <div id="car">
+        <div id="mainBody"></div>
+        <div id="crumpleZone"></div>
+    </div>
+    <div id="wall"></div>
+</div>
+
+<p id="results"></p>
+
+<audio id="crashSound" src="crash.mp3" preload="auto"></audio>
+
+<script>
+    const car = document.getElementById('car');
+    const crumpleZone = document.getElementById('crumpleZone');
+    const speedSlider = document.getElementById('speed');
+    const softnessSlider = document.getElementById('softness');
+    const speedValue = document.getElementById('speedValue');
+    const speedKmH = document.getElementById('speedKmH');
+    const softnessValue = document.getElementById('softnessValue');
+    const results = document.getElementById('results');
+    const crashSound = document.getElementById('crashSound');
+
+    const lethalMomentum = 5512.5; // Lethal momentum threshold in kg·m/s
+
+    let animationFrame;
+    let startTime;
+
+    function updateSpeed() {
+        const speed = speedSlider.value;
+        speedValue.innerText = `${speed} m/s`;
+        speedKmH.innerText = `${(speed * 3.6).toFixed(2)} km/h`;
+    }
+
+    function updateSoftness() {
+        softnessValue.innerText = softnessSlider.value;
+    }
+
+    function updateSimulation() {
+        const speed = speedSlider.value;
+        const softness = softnessSlider.value;
+
+        // Initialize animation
+        startTime = null;
+        car.style.left = '0px';
+        crumpleZone.style.width = '20px';
+        cancelAnimationFrame(animationFrame);
+
+        // Start animation
+        const simulateCrash = (timestamp) => {
+            if (!startTime) startTime = timestamp;
+            const elapsed = timestamp - startTime;
+            const distance = Math.min((speed * elapsed) / 100, 480); // distance to cover
+
+            car.style.left = `${distance}px`;
+
+            if (distance < 480) { // distance before collision
+                animationFrame = requestAnimationFrame(simulateCrash);
+            } else {
+                calculateResults(speed, softness);
+                playCrashSound(speed, softness);
+            }
+        };
+
+        animationFrame = requestAnimationFrame(simulateCrash);
+    }
+
+    function calculateResults(speed, softness) {
+        const mass = 1000; // Mass of the car in kg
+        const initialMomentum = mass * speed;
+        const crumpleEfficiency = softness / 10; // Scale softness to a value between 0 and 1
+        const momentumAbsorbed = initialMomentum * crumpleEfficiency;
+        const momentumTransferredToDriver = initialMomentum - momentumAbsorbed;
+
+        // Update crumple zone deformation
+        const deformation = Math.max(0, 20 - (momentumAbsorbed / initialMomentum) * 20); // Deformation calculation
+        crumpleZone.style.width = `${deformation}px`;
+
+        // Display results
+        const resultText = `
+            <strong>Results:</strong><br>
+            Initial Momentum: ${initialMomentum.toFixed(2)} kg·m/s<br>
+            Momentum Absorbed by Crumple Zone: ${momentumAbsorbed.toFixed(2)} kg·m/s<br>
+            Momentum Transferred to Driver: ${momentumTransferredToDriver.toFixed(2)} kg·m/s
+        `;
+        if (momentumTransferredToDriver > lethalMomentum) {
+            results.innerHTML = `<span class="lethal">${resultText}</span>`;
+        } else {
+            results.innerHTML = resultText;
+        }
+    }
+
+    function playCrashSound(speed, softness) {
+        const volume = Math.min(1, (speed / 50) * (1 - softness / 10)); // Adjust volume based on speed and softness
+        crashSound.volume = volume;
+        crashSound.play();
+    }
+
+    speedSlider.addEventListener('input', updateSimulation);
+    softnessSlider.addEventListener('input', updateSimulation);
+
+    updateSpeed();
+    updateSoftness();
+</script>
+
+</body>
+</html>
